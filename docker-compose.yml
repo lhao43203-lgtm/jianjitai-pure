@@ -1,0 +1,28 @@
+name: editing-desk-pure
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3002}
+    ports:
+      - "127.0.0.1:3002:3000"
+    environment:
+      DATABASE_URL: postgresql://editing_desk:local_editing_desk@db:5432/editing_desk
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET before starting Docker}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3002}
+    profiles: ["web"]
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: editing_desk
+      POSTGRES_PASSWORD: local_editing_desk
+      POSTGRES_DB: editing_desk
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pure_postgres:/var/lib/postgresql/data
+    profiles: ["accounts"]
+volumes:
+  pure_postgres:

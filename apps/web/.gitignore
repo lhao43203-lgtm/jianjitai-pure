@@ -1,0 +1,12 @@
+# Turborepo
+.turbo
+
+# Env vars
+.env*
+!.env.example
+
+.next/
+
+.font-cache/
+# BlamePrompt staging (auto-generated)
+.blameprompt/

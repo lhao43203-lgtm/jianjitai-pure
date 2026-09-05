@@ -1,0 +1,18 @@
+{
+	"name": "剪辑台",
+	"short_name": "剪辑台",
+	"description": "自托管视频剪辑工具，支持转录、字幕、时间线特效及可选的已授权 AI 集成。",
+	"lang": "zh-CN",
+	"display": "standalone",
+	"start_url": "/",
+	"theme_color": "#2567EC",
+	"background_color": "#0d0d0d",
+	"icons": [
+		{
+			"src": "/favicon-commercial.svg",
+			"sizes": "any",
+			"type": "image/svg+xml",
+			"purpose": "any maskable"
+		}
+	]
+}

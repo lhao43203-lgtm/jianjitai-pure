@@ -1,0 +1,714 @@
+"use client";
+
+import { cn } from "@/utils/ui";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+	Delete02Icon,
+	TaskAdd02Icon,
+	ViewIcon,
+	ViewOffSlashIcon,
+	VolumeHighIcon,
+	VolumeOffIcon,
+	DragIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "../../../ui/context-menu";
+import { useTimelineZoom } from "@/hooks/timeline/use-timeline-zoom";
+import { useState, useRef, useCallback } from "react";
+import type { EditorCore } from "@/core";
+import { TimelineTrackContent } from "./timeline-track";
+import { TimelinePlayhead } from "./timeline-playhead";
+import { SelectionBox } from "../../selection-box";
+import { useSelectionBox } from "@/hooks/timeline/use-selection-box";
+import { SnapIndicator } from "./snap-indicator";
+import type { SnapPoint } from "@/lib/timeline/snap-utils";
+import type { TimelineTrack } from "@/types/timeline";
+import {
+	TIMELINE_CONSTANTS,
+	TRACK_CONFIG,
+} from "@/constants/timeline-constants";
+import { useElementInteraction } from "@/hooks/timeline/element/use-element-interaction";
+import {
+	getTrackHeight,
+	getCumulativeHeightBefore,
+	getTotalTracksHeight,
+	canTracktHaveAudio,
+	canTrackBeHidden,
+	getTimelineZoomMin,
+	getTimelinePaddingPx,
+	isMainTrack,
+} from "@/lib/timeline";
+import { TimelineToolbar } from "./timeline-toolbar";
+import { useScrollSync } from "@/hooks/timeline/use-scroll-sync";
+import { useElementSelection } from "@/hooks/timeline/element/use-element-selection";
+import { useTimelineSeek } from "@/hooks/timeline/use-timeline-seek";
+import { useTimelineDragDrop } from "@/hooks/timeline/use-timeline-drag-drop";
+import { TimelineRuler } from "./timeline-ruler";
+import { TimelineBookmarksRow } from "./bookmarks";
+import { useBookmarkDrag } from "@/hooks/timeline/use-bookmark-drag";
+import { useEdgeAutoScroll } from "@/hooks/timeline/use-edge-auto-scroll";
+import { useTimelineStore } from "@/stores/timeline-store";
+import { useEditor } from "@/hooks/use-editor";
+import { useTimelinePlayhead } from "@/hooks/timeline/use-timeline-playhead";
+import { DragLine } from "./drag-line";
+import { invokeAction } from "@/lib/actions";
+import { AudioMixerPanel } from "./audio-mixer-panel";
+
+const TRACKS_CONTAINER_MAX_HEIGHT = 800;
+const FALLBACK_CONTAINER_WIDTH = 1000;
+
+export function Timeline() {
+	const tracksContainerHeight = { min: 0, max: TRACKS_CONTAINER_MAX_HEIGHT };
+	const snappingEnabled = useTimelineStore((s) => s.snappingEnabled);
+	const { clearElementSelection, setElementSelection } = useElementSelection();
+	const editor = useEditor();
+	const timeline = editor.timeline;
+	const tracks = timeline.getTracks();
+	const seek = (time: number) => editor.playback.seek({ time });
+
+	const timelineRef = useRef<HTMLDivElement>(null);
+	const timelineHeaderRef = useRef<HTMLDivElement>(null);
+	const rulerRef = useRef<HTMLDivElement>(null);
+	const tracksContainerRef = useRef<HTMLDivElement>(null);
+	const tracksScrollRef = useRef<HTMLDivElement>(null);
+	const trackLabelsRef = useRef<HTMLDivElement>(null);
+	const playheadRef = useRef<HTMLDivElement>(null);
+	const trackLabelsScrollRef = useRef<HTMLDivElement>(null);
+
+	const [isResizing, setIsResizing] = useState(false);
+	const [showMixer, setShowMixer] = useState(false);
+	const [currentSnapPoint, setCurrentSnapPoint] = useState<SnapPoint | null>(
+		null,
+	);
+
+	const handleSnapPointChange = useCallback((snapPoint: SnapPoint | null) => {
+		setCurrentSnapPoint(snapPoint);
+	}, []);
+	const handleResizeStateChange = useCallback(
+		({ isResizing: nextIsResizing }: { isResizing: boolean }) => {
+			setIsResizing(nextIsResizing);
+			if (!nextIsResizing) {
+				setCurrentSnapPoint(null);
+			}
+		},
+		[],
+	);
+
+	const timelineDuration = timeline.getTotalDuration() || 0;
+	const minZoomLevel = getTimelineZoomMin({
+		duration: timelineDuration,
+		containerWidth: tracksContainerRef.current?.clientWidth,
+	});
+
+	const savedViewState = editor.project.getTimelineViewState();
+
+	const { zoomLevel, setZoomLevel, handleWheel, saveScrollPosition } =
+		useTimelineZoom({
+			containerRef: timelineRef,
+			minZoom: minZoomLevel,
+			initialZoom: savedViewState?.zoomLevel,
+			initialScrollLeft: savedViewState?.scrollLeft,
+			initialPlayheadTime: savedViewState?.playheadTime,
+			tracksScrollRef,
+			rulerScrollRef: tracksScrollRef,
+		});
+
+	const {
+		dragState,
+		dragDropTarget,
+		handleElementMouseDown,
+		handleElementClick,
+		lastMouseXRef,
+	} = useElementInteraction({
+		zoomLevel,
+		timelineRef,
+		tracksContainerRef,
+		tracksScrollRef,
+		headerRef: timelineHeaderRef,
+		snappingEnabled,
+		onSnapPointChange: handleSnapPointChange,
+	});
+
+	const {
+		dragState: bookmarkDragState,
+		handleBookmarkMouseDown,
+		lastMouseXRef: bookmarkLastMouseXRef,
+	} = useBookmarkDrag({
+		zoomLevel,
+		scrollRef: tracksScrollRef,
+		snappingEnabled,
+		onSnapPointChange: handleSnapPointChange,
+	});
+
+	const { handleRulerMouseDown: handlePlayheadRulerMouseDown } =
+		useTimelinePlayhead({
+			zoomLevel,
+			rulerRef,
+			rulerScrollRef: tracksScrollRef,
+			tracksScrollRef,
+			playheadRef,
+		});
+
+	const { isDragOver, dropTarget, dragProps } = useTimelineDragDrop({
+		containerRef: tracksContainerRef,
+		headerRef: timelineHeaderRef,
+		tracksScrollRef,
+		zoomLevel,
+	});
+
+	const {
+		selectionBox,
+		handleMouseDown: handleSelectionMouseDown,
+		isSelecting,
+		shouldIgnoreClick,
+	} = useSelectionBox({
+		containerRef: tracksContainerRef,
+		headerRef: timelineHeaderRef,
+		onSelectionComplete: (elements) => {
+			setElementSelection({ elements });
+		},
+		tracksScrollRef,
+		zoomLevel,
+	});
+
+	const containerWidth = tracksContainerRef.current?.clientWidth || FALLBACK_CONTAINER_WIDTH;
+	const contentWidth =
+		timelineDuration * TIMELINE_CONSTANTS.PIXELS_PER_SECOND * zoomLevel;
+	const paddingPx = getTimelinePaddingPx({
+		containerWidth,
+		zoomLevel,
+		minZoom: minZoomLevel,
+	});
+	const dynamicTimelineWidth = Math.max(
+		contentWidth + paddingPx,
+		containerWidth,
+	);
+
+	useEdgeAutoScroll({
+		isActive: bookmarkDragState.isDragging,
+		getMouseClientX: () => bookmarkLastMouseXRef.current,
+		rulerScrollRef: tracksScrollRef,
+		tracksScrollRef,
+		contentWidth: dynamicTimelineWidth,
+	});
+
+	const showSnapIndicator =
+		snappingEnabled &&
+		currentSnapPoint !== null &&
+		(dragState.isDragging || bookmarkDragState.isDragging || isResizing);
+
+	const {
+		handleTracksMouseDown,
+		handleTracksClick,
+		handleRulerMouseDown,
+		handleRulerClick,
+	} = useTimelineSeek({
+		playheadRef,
+		trackLabelsRef,
+		rulerScrollRef: tracksScrollRef,
+		tracksScrollRef,
+		zoomLevel,
+		duration: timeline.getTotalDuration(),
+		isSelecting,
+		clearSelectedElements: clearElementSelection,
+		seek,
+	});
+
+	useScrollSync({
+		tracksScrollRef,
+		trackLabelsScrollRef,
+	});
+
+	const timelineHeaderHeight =
+		timelineHeaderRef.current?.getBoundingClientRect().height ?? 0;
+
+	return (
+		<section
+			className={
+				"panel bg-background relative flex h-full flex-col overflow-hidden rounded-sm border"
+			}
+			{...dragProps}
+			aria-label="Timeline"
+		>
+			<TimelineToolbar
+				zoomLevel={zoomLevel}
+				minZoom={minZoomLevel}
+				setZoomLevel={({ zoom }) => setZoomLevel(zoom)}
+			/>
+
+			<div
+				className="relative flex flex-1 flex-col overflow-hidden"
+				ref={timelineRef}
+			>
+				<SnapIndicator
+					snapPoint={currentSnapPoint}
+					zoomLevel={zoomLevel}
+					tracks={tracks}
+					timelineRef={timelineRef}
+					trackLabelsRef={trackLabelsRef}
+					tracksScrollRef={tracksScrollRef}
+					isVisible={showSnapIndicator}
+				/>
+				<div className="flex flex-1 overflow-hidden">
+					<div className="bg-background flex w-36 shrink-0 flex-col border-r overflow-hidden">
+						<div className="bg-background flex h-4 items-center justify-between px-3 shrink-0">
+							<span className="opacity-0">.</span>
+						</div>
+						<div className="bg-background flex h-4 items-center justify-between px-3 shrink-0">
+							<span className="opacity-0">.</span>
+						</div>
+						{tracks.length > 0 && (
+							<div
+								ref={trackLabelsRef}
+								className="bg-background flex-1 min-h-0 overflow-y-auto"
+								style={{ paddingTop: TIMELINE_CONSTANTS.PADDING_TOP_PX }}
+							>
+								<ScrollArea className="size-full" ref={trackLabelsScrollRef}>
+									<TrackLabelList tracks={tracks} editor={editor} />
+								</ScrollArea>
+							</div>
+						)}
+					</div>
+
+					<div
+						className="relative flex flex-1 flex-col overflow-hidden"
+						ref={tracksContainerRef}
+					>
+						<SelectionBox
+							startPos={selectionBox?.startPos || null}
+							currentPos={selectionBox?.currentPos || null}
+							containerRef={tracksContainerRef}
+							isActive={selectionBox?.isActive || false}
+						/>
+						<DragLine
+							dropTarget={dropTarget}
+							tracks={timeline.getTracks()}
+							isVisible={isDragOver && !dropTarget?.targetElement}
+							headerHeight={timelineHeaderHeight}
+						/>
+						<DragLine
+							dropTarget={dragDropTarget}
+							tracks={timeline.getTracks()}
+							isVisible={dragState.isDragging}
+							headerHeight={timelineHeaderHeight}
+						/>
+						<ScrollArea
+							className="size-full"
+							ref={tracksScrollRef}
+							onMouseDown={(event) => {
+								const isDirectTarget = event.target === event.currentTarget;
+								if (!isDirectTarget) return;
+								event.stopPropagation();
+								handleTracksMouseDown(event);
+								handleSelectionMouseDown(event);
+							}}
+							onClick={(event) => {
+								const isDirectTarget = event.target === event.currentTarget;
+								if (!isDirectTarget) return;
+								event.stopPropagation();
+								handleTracksClick(event);
+							}}
+							onWheel={(event) => {
+								if (
+									event.shiftKey ||
+									Math.abs(event.deltaX) > Math.abs(event.deltaY)
+								) {
+									return;
+								}
+								handleWheel(event);
+							}}
+							onScroll={() => {
+								saveScrollPosition();
+							}}
+						>
+							<div
+								className="relative"
+								style={{
+									width: `${dynamicTimelineWidth}px`,
+								}}
+							>
+								<div
+									ref={timelineHeaderRef}
+									className="bg-background sticky top-0 flex flex-col"
+								>
+									<TimelineRuler
+										zoomLevel={zoomLevel}
+										dynamicTimelineWidth={dynamicTimelineWidth}
+										rulerRef={rulerRef}
+										tracksScrollRef={tracksScrollRef}
+										handleWheel={handleWheel}
+										handleTimelineContentClick={handleRulerClick}
+										handleRulerTrackingMouseDown={handleRulerMouseDown}
+										handleRulerMouseDown={handlePlayheadRulerMouseDown}
+									/>
+									<TimelineBookmarksRow
+										zoomLevel={zoomLevel}
+										dynamicTimelineWidth={dynamicTimelineWidth}
+										dragState={bookmarkDragState}
+										onBookmarkMouseDown={handleBookmarkMouseDown}
+										handleWheel={handleWheel}
+										handleTimelineContentClick={handleRulerClick}
+										handleRulerTrackingMouseDown={handleRulerMouseDown}
+										handleRulerMouseDown={handlePlayheadRulerMouseDown}
+									/>
+								</div>
+								<TimelinePlayhead
+									zoomLevel={zoomLevel}
+									rulerRef={rulerRef}
+									rulerScrollRef={tracksScrollRef}
+									tracksScrollRef={tracksScrollRef}
+									timelineRef={timelineRef}
+									playheadRef={playheadRef}
+									isSnappingToPlayhead={
+										showSnapIndicator && currentSnapPoint?.type === "playhead"
+									}
+								/>
+								<div
+									className="relative"
+									style={{
+										height: `${Math.max(
+											tracksContainerHeight.min,
+											Math.min(
+												tracksContainerHeight.max,
+												getTotalTracksHeight({ tracks }),
+											),
+										)}px`,
+									}}
+								>
+									{tracks.length === 0 ? (
+										<div />
+									) : (
+										[...tracks]
+											.map((track, index) => ({ track, index }))
+											.sort((a, b) => {
+											const aHasDragged = a.track.elements.some(
+												(element) => element.id === dragState.elementId,
+											);
+											const bHasDragged = b.track.elements.some(
+												(element) => element.id === dragState.elementId,
+											);
+												if (aHasDragged) return 1;
+												if (bHasDragged) return -1;
+												return 0;
+											})
+											.map(({ track, index }) => (
+											<ContextMenu key={track.id}>
+												<ContextMenuTrigger asChild>
+													<div
+														className="absolute right-0 left-0"
+														style={{
+															top: `${getCumulativeHeightBefore({
+																tracks,
+																trackIndex: index,
+															})}px`,
+															height: `${getTrackHeight({
+																type: track.type,
+															})}px`,
+														}}
+													>
+														<TimelineTrackContent
+															track={track}
+															zoomLevel={zoomLevel}
+															dragState={dragState}
+															rulerScrollRef={tracksScrollRef}
+															tracksScrollRef={tracksScrollRef}
+															lastMouseXRef={lastMouseXRef}
+															onSnapPointChange={handleSnapPointChange}
+															onResizeStateChange={handleResizeStateChange}
+															onElementMouseDown={handleElementMouseDown}
+															onElementClick={handleElementClick}
+															onTrackMouseDown={(event) => {
+																handleSelectionMouseDown(event);
+																handleTracksMouseDown(event);
+															}}
+															onTrackClick={handleTracksClick}
+															shouldIgnoreClick={shouldIgnoreClick}
+															targetElementId={
+																isDragOver
+																	? dropTarget?.targetElement?.elementId ?? null
+																	: null
+															}
+														/>
+													</div>
+												</ContextMenuTrigger>
+												<ContextMenuContent className="w-40">
+													<ContextMenuItem
+														icon={<HugeiconsIcon icon={TaskAdd02Icon} />}
+												onClick={(event) => {
+														event.stopPropagation();
+														invokeAction("paste-copied");
+													}}
+												>
+													Paste elements
+												</ContextMenuItem>
+												<ContextMenuItem
+													onClick={(event) => {
+														event.stopPropagation();
+														timeline.toggleTrackMute({
+															trackId: track.id,
+														});
+													}}
+												>
+													<HugeiconsIcon icon={VolumeHighIcon} />
+													<span>
+														{canTracktHaveAudio(track) && track.muted
+															? "Unmute track"
+															: "Mute track"}
+													</span>
+												</ContextMenuItem>
+												<ContextMenuItem
+													onClick={(event) => {
+														event.stopPropagation();
+														timeline.toggleTrackVisibility({
+															trackId: track.id,
+														});
+													}}
+												>
+													<HugeiconsIcon icon={ViewIcon} />
+													<span>
+														{canTrackBeHidden(track) && track.hidden
+															? "Show track"
+															: "Hide track"}
+													</span>
+												</ContextMenuItem>
+												<ContextMenuItem
+													onClick={(event) => {
+														event.stopPropagation();
+														timeline.removeTrack({
+															trackId: track.id,
+														});
+													}}
+														variant="destructive"
+													>
+														<HugeiconsIcon icon={Delete02Icon} />
+														Delete track
+													</ContextMenuItem>
+												</ContextMenuContent>
+											</ContextMenu>
+										))
+									)}
+								</div>
+							</div>
+						</ScrollArea>
+					</div>
+				</div>
+			</div>
+			{showMixer && (
+				<div className="border-t bg-background/95">
+					<AudioMixerPanel />
+				</div>
+			)}
+			<button
+				type="button"
+				onClick={() => setShowMixer((prev) => !prev)}
+				className="flex items-center justify-center border-t py-0.5 text-[9px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+			>
+				{showMixer ? "Hide Mixer" : "Show Mixer"}
+			</button>
+		</section>
+	);
+}
+
+function TrackIcon({ track }: { track: TimelineTrack }) {
+	const config = TRACK_CONFIG[track.type];
+	return (
+		<span className="flex items-center shrink-0">{config.icon}</span>
+ 	);
+}
+
+function TrackLabelList({ tracks, editor }: { tracks: TimelineTrack[]; editor: ReturnType<typeof useEditor> }) {
+	const [dragIndex, setDragIndex] = useState<number | null>(null);
+	const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+	const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+		setDragIndex(index);
+		e.dataTransfer.effectAllowed = "move";
+		e.dataTransfer.setData("text/plain", index.toString());
+	}, []);
+
+	const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+		e.preventDefault();
+		e.dataTransfer.dropEffect = "move";
+		setDropIndex(index);
+	}, []);
+
+	const handleDrop = useCallback((e: React.DragEvent, toIndex: number) => {
+		e.preventDefault();
+		if (dragIndex !== null && dragIndex !== toIndex) {
+			editor.timeline.reorderTracks({ fromIndex: dragIndex, toIndex });
+		}
+		setDragIndex(null);
+		setDropIndex(null);
+	}, [dragIndex, editor]);
+
+	const handleDragEnd = useCallback(() => {
+		setDragIndex(null);
+		setDropIndex(null);
+	}, []);
+
+	return (
+		<div className="flex flex-col gap-1">
+			{tracks.map((track, index) => (
+				<div
+					key={track.id}
+					draggable
+					onDragStart={(e) => handleDragStart(e, index)}
+					onDragOver={(e) => handleDragOver(e, index)}
+					onDrop={(e) => handleDrop(e, index)}
+					onDragEnd={handleDragEnd}
+					className={cn(
+						"group flex items-center gap-1 px-2 transition-colors",
+						dragIndex === index && "opacity-50",
+						dropIndex === index && dragIndex !== index && "border-t-2 border-primary",
+					)}
+					style={{
+						height: `${getTrackHeight({ type: track.type })}px`,
+					}}
+				>
+					<HugeiconsIcon
+						icon={DragIcon}
+						className="size-3 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+					/>
+					<TrackIcon track={track} />
+					<TrackLabel track={track} />
+					<div className="flex items-center gap-0.5 shrink-0">
+						{canTracktHaveAudio(track) && (
+							<TrackToggleIcon
+								isOff={track.muted}
+								icons={{
+									on: VolumeHighIcon,
+									off: VolumeOffIcon,
+								}}
+								onClick={() =>
+									editor.timeline.toggleTrackMute({
+										trackId: track.id,
+									})
+								}
+							/>
+						)}
+						{canTrackBeHidden(track) && (
+							<TrackToggleIcon
+								isOff={track.hidden}
+								icons={{
+									on: ViewIcon,
+									off: ViewOffSlashIcon,
+								}}
+								onClick={() =>
+									editor.timeline.toggleTrackVisibility({
+										trackId: track.id,
+									})
+								}
+							/>
+						)}
+					</div>
+				</div>
+			))}
+		</div>
+	);
+}
+
+function TrackLabel({ track }: { track: TimelineTrack }) {
+	const editor = useEditor();
+	const config = TRACK_CONFIG[track.type];
+	const [isEditing, setIsEditing] = useState(false);
+	const inputRef = useRef<HTMLInputElement>(null);
+	const displayName = track.name || config.defaultName;
+
+	const handleStartEdit = () => {
+		setIsEditing(true);
+		requestAnimationFrame(() => {
+			inputRef.current?.select();
+		});
+	};
+
+	const handleCommit = () => {
+		setIsEditing(false);
+		const newName = inputRef.current?.value.trim() ?? "";
+		if (newName && newName !== track.name) {
+			editor.timeline.renameTrack({ trackId: track.id, name: newName });
+		}
+	};
+
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter") {
+			e.preventDefault();
+			inputRef.current?.blur();
+		} else if (e.key === "Escape") {
+			e.preventDefault();
+			if (inputRef.current) inputRef.current.value = displayName;
+			setIsEditing(false);
+		}
+	};
+
+	if (isEditing) {
+		return (
+			<input
+				ref={inputRef}
+				type="text"
+				defaultValue={displayName}
+				onBlur={handleCommit}
+				onKeyDown={handleKeyDown}
+				className="min-w-0 flex-1 rounded-sm bg-accent px-1 py-0.5 text-[10px] font-medium outline-none ring-1 ring-ring"
+			/>
+		);
+	}
+
+	return (
+		<Tooltip delayDuration={300}>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					onClick={handleStartEdit}
+					className="min-w-0 flex-1 truncate rounded-sm px-1 py-0.5 text-left text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-text"
+				>
+					{displayName}
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="right" sideOffset={8}>
+				<p className="text-xs font-medium">{displayName}</p>
+				<p className="text-[10px] text-muted-foreground">Click to rename</p>
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
+function TrackToggleIcon({
+	isOff,
+	icons,
+	onClick,
+}: {
+	isOff: boolean;
+	icons: {
+		on: IconSvgElement;
+		off: IconSvgElement;
+	};
+	onClick: () => void;
+}) {
+	return (
+		<>
+			{isOff ? (
+				<HugeiconsIcon
+					icon={icons.off}
+					className="text-destructive size-4 cursor-pointer"
+					onClick={onClick}
+				/>
+			) : (
+				<HugeiconsIcon
+					icon={icons.on}
+					className="text-muted-foreground size-4 cursor-pointer"
+					onClick={onClick}
+				/>
+			)}
+		</>
+	);
+}

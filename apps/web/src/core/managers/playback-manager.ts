@@ -1,0 +1,258 @@
+import type { EditorCore } from "@/core";
+
+export class PlaybackManager {
+	private isPlaying = false;
+	private currentTime = 0;
+	private volume = 1;
+	private muted = false;
+	private previousVolume = 1;
+	private isScrubbing = false;
+	private listeners = new Set<() => void>();
+	private playbackTimer: number | null = null;
+	private lastUpdate = 0;
+	private shuttleSpeed = 0;
+	private shuttleDirection: "forward" | "reverse" | null = null;
+	private lastShuttlePress = 0;
+	private static readonly SHUTTLE_SPEEDS = [1, 2, 4, 8];
+
+	constructor(private editor: EditorCore) {}
+
+	play(): void {
+		const duration = this.editor.timeline.getTotalDuration();
+
+		// Don't play if the timeline is empty
+		if (duration <= 0) return;
+
+		if (this.currentTime >= duration) {
+			this.seek({ time: 0 });
+		}
+
+		// Normal play is always 1x. Shuttle sets its own direction/speed via
+		// shuttleForward/shuttleReverse; leaving speed at 0 made time never
+		// advance and, at t=0, every rAF hit newTime <= 0 and stormed
+		// playback-seek events (audio restart / play-pause bootloop).
+		this.shuttleSpeed = 0;
+		this.shuttleDirection = null;
+		this.isPlaying = true;
+		this.startTimer();
+		this.notify();
+	}
+
+	pause(): void {
+		this.isPlaying = false;
+		this.shuttleSpeed = 0;
+		this.shuttleDirection = null;
+		this.stopTimer();
+		this.notify();
+	}
+
+	toggle(): void {
+		if (this.isPlaying) {
+			this.pause();
+		} else {
+			this.play();
+		}
+	}
+
+	seek({ time }: { time: number }): void {
+		const duration = this.editor.timeline.getTotalDuration();
+		this.currentTime = Math.max(0, Math.min(duration, time));
+		this.notify();
+
+		window.dispatchEvent(
+			new CustomEvent("playback-seek", {
+				detail: { time: this.currentTime },
+			}),
+		);
+	}
+
+	setVolume({ volume }: { volume: number }): void {
+		const clampedVolume = Math.max(0, Math.min(1, volume));
+		this.volume = clampedVolume;
+		this.muted = clampedVolume === 0;
+		if (clampedVolume > 0) {
+			this.previousVolume = clampedVolume;
+		}
+		this.notify();
+	}
+
+	mute(): void {
+		if (this.volume > 0) {
+			this.previousVolume = this.volume;
+		}
+		this.muted = true;
+		this.volume = 0;
+		this.notify();
+	}
+
+	unmute(): void {
+		this.muted = false;
+		this.volume = this.previousVolume;
+		this.notify();
+	}
+
+	toggleMute(): void {
+		if (this.muted) {
+			this.unmute();
+		} else {
+			this.mute();
+		}
+	}
+
+	getIsPlaying(): boolean {
+		return this.isPlaying;
+	}
+
+	getCurrentTime(): number {
+		return this.currentTime;
+	}
+
+	getVolume(): number {
+		return this.volume;
+	}
+
+	isMuted(): boolean {
+		return this.muted;
+	}
+
+	setScrubbing({ isScrubbing }: { isScrubbing: boolean }): void {
+		this.isScrubbing = isScrubbing;
+		this.notify();
+	}
+
+	getIsScrubbing(): boolean {
+		return this.isScrubbing;
+	}
+
+	shuttleForward(): void {
+		const now = Date.now();
+		if (this.shuttleDirection === "forward" && now - this.lastShuttlePress < 500) {
+			const idx = PlaybackManager.SHUTTLE_SPEEDS.indexOf(this.shuttleSpeed);
+			this.shuttleSpeed = PlaybackManager.SHUTTLE_SPEEDS[Math.min(idx + 1, PlaybackManager.SHUTTLE_SPEEDS.length - 1)];
+		} else {
+			this.shuttleSpeed = 1;
+		}
+		this.shuttleDirection = "forward";
+		this.lastShuttlePress = now;
+		this.isPlaying = true;
+		this.startTimer();
+		this.notify();
+	}
+
+	shuttleReverse(): void {
+		const now = Date.now();
+		if (this.shuttleDirection === "reverse" && now - this.lastShuttlePress < 500) {
+			const idx = PlaybackManager.SHUTTLE_SPEEDS.indexOf(this.shuttleSpeed);
+			this.shuttleSpeed = PlaybackManager.SHUTTLE_SPEEDS[Math.min(idx + 1, PlaybackManager.SHUTTLE_SPEEDS.length - 1)];
+		} else {
+			this.shuttleSpeed = 1;
+		}
+		this.shuttleDirection = "reverse";
+		this.lastShuttlePress = now;
+		this.isPlaying = true;
+		this.startTimer();
+		this.notify();
+	}
+
+	shuttleStop(): void {
+		this.shuttleSpeed = 0;
+		this.shuttleDirection = null;
+		this.pause();
+	}
+
+	getShuttleSpeed(): number {
+		return this.shuttleSpeed;
+	}
+
+	getShuttleDirection(): "forward" | "reverse" | null {
+		return this.shuttleDirection;
+	}
+
+	subscribe(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	}
+
+	private notify(): void {
+		this.listeners.forEach((fn) => fn());
+	}
+
+	private startTimer(): void {
+		if (this.playbackTimer) {
+			cancelAnimationFrame(this.playbackTimer);
+		}
+
+		this.lastUpdate = performance.now();
+		this.updateTime();
+	}
+
+	private stopTimer(): void {
+		if (this.playbackTimer) {
+			cancelAnimationFrame(this.playbackTimer);
+			this.playbackTimer = null;
+		}
+	}
+
+	private updateTime = (): void => {
+		if (!this.isPlaying) return;
+
+		const now = performance.now();
+		const delta = (now - this.lastUpdate) / 1000;
+		this.lastUpdate = now;
+
+		// Shuttle inactive → 1x (normal play). Active shuttle uses its speed.
+		let speed = 1;
+		if (this.shuttleDirection === "forward") {
+			speed = this.shuttleSpeed;
+		} else if (this.shuttleDirection === "reverse") {
+			speed = -this.shuttleSpeed;
+		}
+
+		const newTime = this.currentTime + delta * speed;
+		const duration = this.editor.timeline.getTotalDuration();
+
+		if (duration > 0 && newTime >= duration) {
+			this.pause();
+			this.currentTime = duration;
+			this.notify();
+
+			window.dispatchEvent(
+				new CustomEvent("playback-seek", {
+					detail: { time: duration },
+				}),
+			);
+			return;
+		}
+
+		if (newTime <= 0) {
+			const wasAtStart = this.currentTime <= 0;
+			this.currentTime = 0;
+			this.notify();
+
+			// Avoid seek storms when stuck at 0 (e.g. speed was 0 before the fix)
+			if (!wasAtStart) {
+				window.dispatchEvent(
+					new CustomEvent("playback-seek", {
+						detail: { time: 0 },
+					}),
+				);
+			}
+
+			if (this.shuttleDirection === "reverse" && this.shuttleSpeed > 0) {
+				this.shuttleStop();
+				return;
+			}
+		} else {
+			this.currentTime = newTime;
+			this.notify();
+
+			window.dispatchEvent(
+				new CustomEvent("playback-update", {
+					detail: { time: newTime },
+				}),
+			);
+		}
+
+		this.playbackTimer = requestAnimationFrame(this.updateTime);
+	};
+}

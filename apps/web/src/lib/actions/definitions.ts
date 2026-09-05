@@ -1,0 +1,287 @@
+import type { ShortcutKey } from "@/types/keybinding";
+
+export type TActionCategory =
+	| "playback"
+	| "navigation"
+	| "editing"
+	| "selection"
+	| "history"
+	| "timeline"
+	| "controls"
+	| "version"
+	| "ai";
+
+export interface TActionDefinition {
+	description: string;
+	category: TActionCategory;
+	defaultShortcuts?: ShortcutKey[];
+	args?: Record<string, unknown>;
+}
+
+export const ACTIONS = {
+	"add-local-audio": {
+		description: "Add audio to timeline",
+		category: "editing",
+	},
+	"remove-clip-effect": {
+		description: "Delete effect",
+		category: "editing",
+	},
+	"toggle-clip-effect": {
+		description: "Toggle effect",
+		category: "editing",
+	},
+	"remove-all-clip-effects": {
+		description: "Remove all effects",
+		category: "editing",
+	},
+	"toggle-play": {
+		description: "Play/Pause",
+		category: "playback",
+		defaultShortcuts: ["space", "k"],
+	},
+	"stop-playback": {
+		description: "Stop playback",
+		category: "playback",
+	},
+	"seek-forward": {
+		description: "Seek forward 1 second",
+		category: "playback",
+		defaultShortcuts: ["l"],
+		args: { seconds: "number" },
+	},
+	"seek-backward": {
+		description: "Seek backward 1 second",
+		category: "playback",
+		defaultShortcuts: ["j"],
+		args: { seconds: "number" },
+	},
+	"frame-step-forward": {
+		description: "Frame step forward",
+		category: "navigation",
+		defaultShortcuts: ["right"],
+	},
+	"frame-step-backward": {
+		description: "Frame step backward",
+		category: "navigation",
+		defaultShortcuts: ["left"],
+	},
+	"jump-forward": {
+		description: "Jump forward 5 seconds",
+		category: "navigation",
+		defaultShortcuts: ["shift+right"],
+		args: { seconds: "number" },
+	},
+	"jump-backward": {
+		description: "Jump backward 5 seconds",
+		category: "navigation",
+		defaultShortcuts: ["shift+left"],
+		args: { seconds: "number" },
+	},
+	"goto-start": {
+		description: "Go to timeline start",
+		category: "navigation",
+		defaultShortcuts: ["home", "enter"],
+	},
+	"goto-end": {
+		description: "Go to timeline end",
+		category: "navigation",
+		defaultShortcuts: ["end"],
+	},
+	split: {
+		description: "Split elements at playhead",
+		category: "editing",
+		defaultShortcuts: ["s"],
+	},
+	"split-left": {
+		description: "Split and remove left",
+		category: "editing",
+		defaultShortcuts: ["q"],
+	},
+	"split-right": {
+		description: "Split and remove right",
+		category: "editing",
+		defaultShortcuts: ["w"],
+	},
+	"delete-selected": {
+		description: "Delete selected elements",
+		category: "editing",
+		defaultShortcuts: ["backspace", "delete"],
+	},
+	"copy-selected": {
+		description: "Copy selected elements",
+		category: "editing",
+		defaultShortcuts: ["ctrl+c"],
+	},
+	"paste-copied": {
+		description: "Paste elements at playhead",
+		category: "editing",
+		defaultShortcuts: ["ctrl+v"],
+	},
+	"toggle-snapping": {
+		description: "Toggle snapping",
+		category: "editing",
+		defaultShortcuts: ["n"],
+	},
+	"toggle-ripple-editing": {
+		description: "Toggle ripple editing",
+		category: "editing",
+	},
+	"add-marker": {
+		description: "Add marker at playhead",
+		category: "timeline",
+		defaultShortcuts: ["m"],
+	},
+	"next-marker": {
+		description: "Jump to next marker",
+		category: "navigation",
+	},
+	"previous-marker": {
+		description: "Jump to previous marker",
+		category: "navigation",
+	},
+	"shuttle-forward": {
+		description: "Shuttle forward (double press L = 2x)",
+		category: "playback",
+	},
+	"shuttle-reverse": {
+		description: "Shuttle reverse (double press J = 2x)",
+		category: "playback",
+	},
+	"shuttle-stop": {
+		description: "Stop shuttle playback",
+		category: "playback",
+	},
+	"ripple-delete": {
+		description: "Ripple delete selected elements",
+		category: "editing",
+	},
+	"nest-clips": {
+		description: "Nest selected clips into compound clip",
+		category: "editing",
+	},
+	"unnest-clips": {
+		description: "Unnest compound clip",
+		category: "editing",
+	},
+	"select-all": {
+		description: "Select all elements",
+		category: "selection",
+		defaultShortcuts: ["ctrl+a"],
+	},
+	"deselect-all": {
+		description: "Deselect all elements",
+		category: "selection",
+		defaultShortcuts: ["escape"],
+	},
+	"duplicate-selected": {
+		description: "Duplicate selected element",
+		category: "selection",
+		defaultShortcuts: ["ctrl+d"],
+	},
+	"toggle-elements-muted-selected": {
+		description: "Mute/unmute selected elements",
+		category: "selection",
+	},
+	"toggle-elements-visibility-selected": {
+		description: "Show/hide selected elements",
+		category: "selection",
+	},
+	"separate-audio": {
+		description: "Separate audio from video",
+		category: "editing",
+	},
+	"freeze-frame": {
+		description: "Insert freeze frame at playhead",
+		category: "editing",
+	},
+	"toggle-bookmark": {
+		description: "Toggle bookmark at playhead",
+		category: "timeline",
+	},
+	undo: {
+		description: "Undo",
+		category: "history",
+		defaultShortcuts: ["ctrl+z"],
+	},
+	redo: {
+		description: "Redo",
+		category: "history",
+		defaultShortcuts: ["ctrl+shift+z", "ctrl+y"],
+	},
+	"version-commit": {
+		description: "Open commit dialog",
+		category: "version",
+		defaultShortcuts: ["ctrl+shift+s"],
+	},
+	"version-history-toggle": {
+		description: "Toggle version history panel",
+		category: "version",
+		defaultShortcuts: ["ctrl+shift+h"],
+	},
+	"version-diff-working": {
+		description: "Show diff of uncommitted changes",
+		category: "version",
+		defaultShortcuts: ["ctrl+shift+d"],
+	},
+	"version-branch-switcher": {
+		description: "Open branch switcher",
+		category: "version",
+		defaultShortcuts: ["ctrl+shift+b"],
+	},
+	"version-branch-create": {
+		description: "Quick create branch",
+		category: "version",
+	},
+	"open-command-palette": {
+		description: "Open command palette",
+		category: "controls",
+		defaultShortcuts: ["ctrl+shift+p"],
+	},
+	"add-transition": {
+		description: "Add transition between selected clips",
+		category: "editing",
+	},
+	"remove-transition": {
+		description: "Remove transition",
+		category: "editing",
+	},
+	"toggle-track-lock": {
+		description: "Lock/Unlock selected track",
+		category: "timeline",
+	},
+	"export-youtube-chapters": {
+		description: "Copy YouTube chapters to clipboard",
+		category: "editing",
+	},
+	"reorder-tracks": {
+		description: "Reorder tracks by dragging",
+		category: "timeline",
+	},
+} as const satisfies Record<string, TActionDefinition>;
+
+export type TAction = keyof typeof ACTIONS;
+
+export function getActionDefinition({
+	action,
+}: {
+	action: TAction;
+}): TActionDefinition {
+	return ACTIONS[action];
+}
+
+export function getDefaultShortcuts(): Record<ShortcutKey, TAction> {
+	const shortcuts: Record<string, TAction> = {};
+
+	for (const [action, def] of Object.entries(ACTIONS) as Array<
+		[TAction, TActionDefinition]
+	>) {
+		if (def.defaultShortcuts) {
+			for (const shortcut of def.defaultShortcuts) {
+				shortcuts[shortcut] = action;
+			}
+		}
+	}
+
+	return shortcuts as Record<ShortcutKey, TAction>;
+}

@@ -1,0 +1,51 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# asdf version management
+.tool-versions
+
+node_modules
+.cursorignore
+.turbo
+
+# TypeScript incremental build state
+*.tsbuildinfo
+
+.env*
+!*.env.example
+
+# cursor
+bun.lockb
+
+# content-collections
+.content-collections
+
+# Twiggy
+.cursor/rules/file-structure.mdc
+
+# BlamePrompt staging (auto-generated)
+.blameprompt/
+
+# Session tooling state
+.zcode/
+
+# Local cache used while generating static i18n catalogs
+apps/web/scripts/.i18n-translation-cache.json
+
+# AI Backend
+services/ai-backend/.venv/
+services/ai-backend/__pycache__/
+services/ai-backend/**/__pycache__/
+services/ai-backend/*.pyc
+services/ai-backend/generated/
+services/ai-backend/uploads/
+services/ai-backend/*.egg-info/
+
+# AI models and generated content
+ai-models/
+ai-generated/
+
+# Build output and private credentials
+.next/
+*.pem
+*.key
+*.pfx

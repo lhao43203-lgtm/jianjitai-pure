@@ -57,7 +57,9 @@ export default function RootLayout({
 			>
 				<ThemeProvider
 					attribute="class"
-					defaultTheme="system"
+					defaultTheme="dark"
+					forcedTheme="dark"
+					enableSystem={false}
 					disableTransitionOnChange={true}
 				>
 					<I18nProvider>

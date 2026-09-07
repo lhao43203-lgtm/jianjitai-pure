@@ -14,7 +14,6 @@ import { DeleteProjectDialog } from "./dialogs/delete-project-dialog";
 import { useRouter } from "next/navigation";
 
 import { ExportButton } from "./export-button";
-import { ThemeToggle } from "../theme-toggle";
 import { toast } from "sonner";
 import { useEditor } from "@/hooks/use-editor";
 import {
@@ -25,7 +24,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ShortcutsDialog } from "./dialogs/shortcuts-dialog";
-import { ProductLogo } from "@/components/product-brand";
 import { cn } from "@/utils/ui";
 import { SaveStatus } from "@/components/editor/save-status";
 import { VersionControlBar } from "@/components/editor/version-control-bar";
@@ -57,6 +55,12 @@ export function EditorHeader() {
 		<header className="bg-background flex h-[3.4rem] items-center justify-between px-3 pt-0.5">
 			<div className="flex items-center gap-1">
 				<ProjectDropdown />
+				<Button variant="ghost" size="sm" type="button" aria-disabled="true" title="返回创作台（暂未开放跳转）">
+					<span aria-hidden="true">←</span> 返回创作台
+				</Button>
+				<Button variant="ghost" size="sm" type="button" aria-disabled="true" title="前往画布（暂未开放跳转）">
+					<span aria-hidden="true">↗</span> 前往画布
+				</Button>
 				<EditableProjectName />
 				<SaveStatus className="ml-2" />
 			</div>
@@ -66,7 +70,6 @@ export function EditorHeader() {
 			<nav className="flex items-center gap-2">
 				<ExportButton />
 				<LanguageSwitcher />
-				<ThemeToggle />
 			</nav>
 			<VersionControlDrawer
 				open={vcDrawerOpen}
@@ -148,7 +151,11 @@ function ProjectDropdown() {
 						variant="ghost"
 						className="p-0 rounded-sm size-10 [&_svg]:!size-auto"
 					>
-						<ProductLogo size={36} />
+						<svg width="36" height="36" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+							<rect x="3" y="3" width="42" height="42" rx="12" fill="#102f3a" stroke="#65e5d8" strokeOpacity="0.35" />
+							<path d="M17 13.5C15.7 12.7 14 13.7 14 15.2V32.8C14 34.3 15.7 35.3 17 34.5L32.2 25.7C33.5 25 33.5 23 32.2 22.3L17 13.5Z" fill="#ff6224" />
+							<path d="M20 8L37 18C41.5 20.6 41.5 27.4 37 30L20 40" stroke="#65e5d8" strokeWidth="2" strokeLinecap="round" />
+						</svg>
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="start" className="z-100 w-44">

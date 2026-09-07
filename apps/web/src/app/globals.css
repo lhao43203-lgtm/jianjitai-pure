@@ -299,3 +299,96 @@
 		@apply bg-background text-foreground;
 	}
 }
+
+/* NexGC editor skin — presentation only.
+ * Scoped to the existing editor. No layout dimensions, visibility, events,
+ * canvas filters, timeline coordinates or project settings are overridden.
+ * Light/dark switching and all original editing controls remain intact.
+ */
+body:has(.nexgc-editor) {
+	--primary: #087f77;
+	--primary-foreground: #ffffff;
+	--secondary: #e3f6f3;
+	--secondary-border: #b9e4df;
+	--secondary-foreground: #087f77;
+	--ring: #159b90;
+	--nexgc-export: #ff6224;
+	--nexgc-export-hover: #ed5318;
+}
+body:has(.nexgc-editor) .panel {
+	--secondary: #e3f6f3;
+	--secondary-border: #b9e4df;
+	--secondary-foreground: #087f77;
+}
+.dark body:has(.nexgc-editor) {
+	--background: #0a1e27;
+	--foreground: #e6f0f2;
+	--card: #102f3a;
+	--card-foreground: #e6f0f2;
+	--popover: #14333f;
+	--popover-hover: #204652;
+	--popover-foreground: #e6f0f2;
+	--primary: #65e5d8;
+	--primary-foreground: #102f3a;
+	--secondary: #153d46;
+	--secondary-border: #2a575f;
+	--secondary-foreground: #65e5d8;
+	--muted: #25444f;
+	--muted-foreground: #92adb7;
+	--accent: #1c3e4b;
+	--accent-foreground: #e6f0f2;
+	--border: #284550;
+	--input: #15333f;
+	--ring: #65e5d8;
+	--sidebar-background: #102f3a;
+	--sidebar-foreground: #c0d4da;
+	--sidebar-primary: #65e5d8;
+	--sidebar-primary-foreground: #102f3a;
+	--sidebar-accent: #1c3e4b;
+	--sidebar-accent-foreground: #e6f0f2;
+	--sidebar-border: #284550;
+	--sidebar-ring: #65e5d8;
+}
+.dark body:has(.nexgc-editor) .panel {
+	--background: #102f3a;
+	--foreground: #e6f0f2;
+	--card: #102f3a;
+	--card-foreground: #e6f0f2;
+	--primary-foreground: #102f3a;
+	--secondary: #18434b;
+	--secondary-border: #2a575f;
+	--secondary-foreground: #65e5d8;
+	--muted: #25444f;
+	--muted-foreground: #92adb7;
+	--accent: #20434f;
+	--accent-foreground: #e6f0f2;
+	--border: #284550;
+	--input: #173945;
+	--ring: #65e5d8;
+}
+.nexgc-editor > header {
+	box-shadow: inset 0 -1px 0 var(--border);
+}
+.nexgc-editor .panel {
+	border-radius: 9px;
+}
+.nexgc-editor button:focus-visible {
+	outline-color: var(--ring);
+}
+.nexgc-editor .nexgc-export-trigger,
+.nexgc-editor .nexgc-export-trigger > div,
+.nexgc-editor .nexgc-export-trigger > div > div,
+.nexgc-editor .nexgc-export-trigger > div > div > div {
+	background: var(--nexgc-export);
+	box-shadow: none;
+	border-radius: 8px;
+}
+.nexgc-editor .nexgc-export-trigger:hover,
+.nexgc-editor .nexgc-export-trigger:hover > div,
+.nexgc-editor .nexgc-export-trigger:hover > div > div,
+.nexgc-editor .nexgc-export-trigger:hover > div > div > div {
+	background: var(--nexgc-export-hover);
+}
+.nexgc-editor .nexgc-export-trigger {
+	color: #172b31;
+}

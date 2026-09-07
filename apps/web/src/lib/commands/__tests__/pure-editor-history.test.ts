@@ -10,6 +10,7 @@ import { UpdateElementCommand } from "@/lib/commands/timeline/element/update-ele
 import { RemoveClipEffectCommand } from "@/lib/commands/timeline/element/effects/remove-effect";
 import { ToggleClipEffectCommand } from "@/lib/commands/timeline/element/effects/toggle-effect";
 import { RemoveTransitionCommand } from "@/lib/commands/timeline/element/transitions/add-transition";
+import type { Effect } from "@/types/effects";
 import type { TimelineTrack, VisualElement } from "@/types/timeline";
 
 const original = EditorCore.getInstance;
@@ -34,6 +35,15 @@ function setup(initial: TimelineTrack[]) {
 function fixture(
 	type: "video" | "image" | "text" | "sticker",
 ): TimelineTrack[] {
+	const effects: Effect[] = [
+		{ id: "fx1", type: "blur", params: { radius: 12 }, enabled: true },
+		{
+			id: "fx2",
+			type: "vignette",
+			params: { intensity: 0.7 },
+			enabled: false,
+		},
+	];
 	const base = {
 		id: "clip",
 		name: "Clip",
@@ -43,15 +53,7 @@ function fixture(
 		trimEnd: 0,
 		transform: structuredClone(DEFAULT_TRANSFORM),
 		opacity: 1,
-		effects: [
-			{ id: "fx1", type: "blur", params: { radius: 12 }, enabled: true },
-			{
-				id: "fx2",
-				type: "vignette",
-				params: { intensity: 0.7 },
-				enabled: false,
-			},
-		],
+		effects,
 	};
 	if (type === "text")
 		return [
